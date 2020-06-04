@@ -827,7 +827,7 @@ class MAGIC(BaseEstimator):
                         error_vec.append(error)
                         _logger.debug("{}: {}".format(i, error_vec))
                         if error < threshold and t_opt is None:
-                            t_opt = i + 1
+                            t_opt = i
                             _logger.info("Automatically selected t = {}".format(t_opt))
 
         if plot:
