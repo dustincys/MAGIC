@@ -106,9 +106,8 @@ magic <- function(data, ...) {
 #' @rdname magic
 #' @export
 #'
-magic.magic.default <- function(
+magic.default <- function(
   data,
-  data.RNA,
   genes = NULL,
   knn = 5,
   knn.max = NULL,
@@ -123,6 +122,7 @@ magic.magic.default <- function(
   seed = NULL,
   # deprecated args
   k=NULL, alpha=NULL,
+  data.RNA = NULL,
   ...
 ) {
   # check installation
@@ -165,9 +165,13 @@ magic.magic.default <- function(
   if (!methods::is(object = data, "Matrix")) {
     data <- as.matrix(x = data)
   }
-  if (!methods::is(object = data.RNA, "Matrix")) {
-      data.RNA <- as.matrix(x = data.RNA)
-  }
+
+    if (!is.null(data.RNA)){
+        if (!methods::is(object = data.RNA, "Matrix")) {
+            data.RNA <- as.matrix(x = data.RNA)
+        }
+    }
+
   if (is.null(x = genes) || is.na(x = genes)) {
     genes <- NULL
     gene_names <- colnames(x = data)
@@ -230,19 +234,33 @@ magic.magic.default <- function(
       verbose = verbose
     )
   }
-  result <- operator$fit_transform(
-    data,
-    genes = genes,
-    t_max = t.max
-  )
+
+    result <- NULL
+    if (is.null(data.RNA)){
+        result <- operator$fit_transform(
+          data,
+          genes = genes,
+          t_max = t.max
+        )
+    }else{
+        operator$fit(data)
+        result <- operator$transform(
+                               data.RNA,
+                               genes = genes,
+                               t_max = t.max)
+    }
+
   colnames(x = result) <- gene_names
   rownames(x = result) <- rownames(data)
+
   result <- as.data.frame(x = result)
-    result <- list(
-      "result" = result,
-      "operator" = operator,
-      "params" = params
-    )
+
+  result <- list(
+    "result" = result,
+    "operator" = operator,
+    "params" = params
+  )
+
   class(x = result) <- c("magic", "list")
   return(result)
 }
@@ -516,6 +534,12 @@ magic.Seurat <- function(
     ))
   }
 }
+
+
+
+
+
+
 
 #' Print a MAGIC object
 #'
