@@ -102,6 +102,153 @@ magic <- function(data, ...) {
   UseMethod(generic = 'magic', object = data)
 }
 
+
+#' @rdname magic
+#' @export
+#'
+magic.magic.default <- function(
+  data,
+  data.RNA,
+  genes = NULL,
+  knn = 5,
+  knn.max = NULL,
+  decay = 1,
+  t = 3,
+  npca = 100,
+  init = NULL,
+  t.max = 20,
+  knn.dist.method = 'euclidean',
+  verbose = 1,
+  n.jobs = 1,
+  seed = NULL,
+  # deprecated args
+  k=NULL, alpha=NULL,
+  ...
+) {
+  # check installation
+  if (!reticulate::py_module_available(module = "magic") || (is.null(pymagic))) load_pymagic()
+  # check for deprecated arguments
+  if (!is.null(k)) {
+    message("Argument k is deprecated. Using knn instead.")
+    knn <- k
+  }
+  if (!is.null(alpha)) {
+    message("Argument alpha is deprecated. Using decay instead.")
+    decay <- alpha
+  }
+  knn <- as.integer(x = knn)
+  t.max <- as.integer(x = t.max)
+  n.jobs <- as.integer(x = n.jobs)
+  if (is.numeric(x = npca)) {
+    npca <- as.integer(x = npca)
+  } else if (!is.null(x = npca) && is.na(x = npca)) {
+    npca <- NULL
+  }
+  if (is.numeric(x = decay)) {
+    decay <- as.double(x = decay)
+  } else if (!is.null(x = decay) && is.na(x = decay)) {
+    decay <- NULL
+  }
+  if (is.numeric(x = t)) {
+    t <- as.integer(x = t)
+  } else if (is.null(x = t) || is.na(x = t)) {
+    t <- 'auto'
+  }
+  if (is.numeric(x = seed)) {
+    seed <- as.integer(x = seed)
+  } else if (!is.null(x = seed) && is.na(x = seed)) {
+    seed <- NULL
+  }
+  if (is.numeric(x = verbose)) {
+    verbose <- as.integer(x = verbose)
+  }
+  if (!methods::is(object = data, "Matrix")) {
+    data <- as.matrix(x = data)
+  }
+  if (!methods::is(object = data.RNA, "Matrix")) {
+      data.RNA <- as.matrix(x = data.RNA)
+  }
+  if (is.null(x = genes) || is.na(x = genes)) {
+    genes <- NULL
+    gene_names <- colnames(x = data)
+  } else if (is.numeric(x = genes)) {
+    gene_names <- colnames(x = data)[genes]
+    genes <- as.integer(x = genes - 1)
+  } else if (length(x = genes) == 1 && genes == "all_genes") {
+    gene_names <- colnames(x = data)
+  } else if (length(x = genes) == 1 && genes == "pca_only") {
+    gene_names <- paste0("PC", 1:npca)
+  } else {
+    # character vector
+    if (!all(genes %in% colnames(x = data))) {
+      warning(paste0("Genes ", genes[!(genes %in% colnames(data))], " not found.", collapse = ", "))
+    }
+    genes <- which(x = colnames(x = data) %in% genes)
+    gene_names <- colnames(x = data)[genes]
+    genes <- as.integer(x = genes - 1)
+  }
+  # store parameters
+  params <- list(
+    "data" = data,
+    "knn" = knn,
+    "knn.max" = knn.max,
+    "decay" = decay,
+    "t" = t,
+    "npca" = npca,
+    "knn.dist.method" = knn.dist.method
+  )
+  # use pre-initialized values if given
+  operator <- NULL
+  if (!is.null(x = init)) {
+    if (!methods::is(init, "magic")) {
+      warning("object passed to init is not a phate object")
+    } else {
+      operator <- init$operator
+      operator$set_params(
+        knn = knn,
+        knn_max = knn.max,
+        decay = decay,
+        t = t,
+        n_pca = npca,
+        knn_dist = knn.dist.method,
+        n_jobs = n.jobs,
+        random_state = seed,
+        verbose = verbose
+      )
+    }
+  }
+  if (is.null(x = operator)) {
+    operator <- pymagic$MAGIC(
+      knn = knn,
+      knn_max = knn.max,
+      decay = decay,
+      t = t,
+      n_pca = npca,
+      knn_dist = knn.dist.method,
+      n_jobs = n.jobs,
+      random_state = seed,
+      verbose = verbose
+    )
+  }
+  result <- operator$fit_transform(
+    data,
+    genes = genes,
+    t_max = t.max
+  )
+  colnames(x = result) <- gene_names
+  rownames(x = result) <- rownames(data)
+  result <- as.data.frame(x = result)
+    result <- list(
+      "result" = result,
+      "operator" = operator,
+      "params" = params
+    )
+  class(x = result) <- c("magic", "list")
+  return(result)
+}
+
+
+
 #' @rdname magic
 #' @export
 #'
